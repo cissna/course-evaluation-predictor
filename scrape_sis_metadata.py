@@ -52,7 +52,8 @@ def load_course_codes() -> List[str]:
                 # Prompt implies "containing a list of course codes". 
                 # We'll check if the first row looks like a header.
                 for row in reader:
-                    if not row: continue
+                    if not row:
+                        continue
                     val = row[0].strip()
                     # Simple heuristic to skip header "course_code" if present
                     if val.lower() == "course_code":
@@ -214,7 +215,8 @@ def extract_features(course_code: str, api_data: List[Dict[str, Any]]) -> List[D
                 meetings = section.get("MeetingPatterns", [])
                 if isinstance(meetings, list):
                     for m in meetings:
-                        if not isinstance(m, dict): continue
+                        if not isinstance(m, dict):
+                            continue
                         
                         days = m.get("Days", "")
                         start = m.get("StartTime", "")
