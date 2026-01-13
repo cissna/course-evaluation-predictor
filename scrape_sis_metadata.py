@@ -124,7 +124,8 @@ def parse_prerequisites(prereq_data: Any) -> str:
 
 def fetch_course_history(course_code: str, api_key: str) -> List[Dict[str, Any]]:
     """Queries SIS API for all historical sections of a course."""
-    url = f"{API_BASE_URL}/{course_code}"
+    clean_code = course_code.replace(".", "")
+    url = f"{API_BASE_URL}/{clean_code}"
     params = {"key": api_key}
     
     try:
