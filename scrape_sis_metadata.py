@@ -29,7 +29,7 @@ except ImportError:
 # Configuration
 API_BASE_URL = "https://sis.jhu.edu/api/classes"
 OUTPUT_FILE = os.path.join("data", "sis_metadata_enriched.csv")
-INPUT_FILE = os.path.join("data", "unique_course_codes.csv")
+INPUT_FILE = os.path.join("data", "Course Evaluation Data.csv")
 
 def get_api_key() -> Optional[str]:
     """Retrieves the JHU SIS API key from environment variable."""
@@ -42,28 +42,21 @@ def get_api_key() -> Optional[str]:
 
 def load_course_codes() -> List[str]:
     """
-    Loads course codes from data/unique_course_codes.csv.
-    If file doesn't exist, returns a dummy list for testing.
+    Loads unique course codes from data/Course Evaluation Data.csv.
     """
     if os.path.exists(INPUT_FILE):
         print(f"Loading course codes from {INPUT_FILE}...")
-        codes = []
+        unique_codes = set()
         try:
             with open(INPUT_FILE, 'r', encoding='utf-8') as f:
-                reader = csv.reader(f)
-                # Assume header exists? Or just a list?
-                # Prompt implies "containing a list of course codes". 
-                # We'll check if the first row looks like a header.
+                reader = csv.DictReader(f)
                 for row in reader:
-                    if not row:
-                        continue
-                    val = row[0].strip()
-                    # Simple heuristic to skip header "course_code" if present
-                    if val.lower() == "course_code":
-                        continue
-                    codes.append(val)
-            print(f"Loaded {len(codes)} codes.")
-            return codes
+                    code = row.get("course_code")
+                    if code:
+                        unique_codes.add(code.strip())
+                        
+            print(f"Found {len(unique_codes)} unique codes.")
+            return sorted(list(unique_codes))
         except Exception as e:
             print(f"Error reading {INPUT_FILE}: {e}")
             return []
