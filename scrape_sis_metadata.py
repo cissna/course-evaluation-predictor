@@ -7,6 +7,9 @@ import json
 from datetime import datetime
 from collections import defaultdict
 from typing import List, Dict, Any, Optional
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Setup logging
 logging.basicConfig(
