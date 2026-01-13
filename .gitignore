@@ -1,2 +1,4 @@
 .venv/
 .env
+
+sis_errors.log
