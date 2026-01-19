@@ -2,3 +2,4 @@
 .env
 
 sis_errors.log
+.DS_Store
