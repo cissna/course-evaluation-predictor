@@ -18,7 +18,7 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
-# TQDM for progress bar (optional)
+# TQDM for progress bar
 try:
     from tqdm import tqdm
 except ImportError:
@@ -196,332 +196,174 @@ def fetch_section_details_single_term(course_code: str, target_section: str, ter
         return []
 
 def extract_features(course_code: str, 
-
                      course_history: List[Dict[str, Any]], 
-
                      details_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-
     """
-
     Processes raw API data to extract features per semester.
-
     Merges general course history with specific section details.
-
     """
-
     if not course_history:
-
         return []
 
-
-
     # 1. Build Lookup Map (Term -> {desc, prereqs})
-
     # This handles both Bulk (list of all terms) and Iterative (list of all terms) inputs.
-
     details_map = {}
-
     for section in details_list:
-
         term = section.get("Term")
-
-        if not term: continue
-
+        if not term:
+            continue
         
-
         # Extract details
-
         sec_details = section.get("SectionDetails", [])
-
         desc = ""
-
         prereq_str = ""
-
         
-
         if isinstance(sec_details, list) and len(sec_details) > 0:
-
             detail_obj = sec_details[0]
-
             desc = detail_obj.get("Description", "")
-
             
-
             p_list = detail_obj.get("Prerequisites", [])
-
             p_parts = []
-
             if isinstance(p_list, list):
-
                 for p_item in p_list:
-
                     if isinstance(p_item, dict):
-
                         p_desc = p_item.get("Description", "")
-
                         if p_desc:
-
                             p_parts.append(p_desc)
-
             prereq_str = "; ".join(p_parts)
 
-
-
         details_map[term] = {
-
             "description": desc,
-
             "prerequisites": prereq_str
-
         }
 
-
-
     # 2. Group Main History by Semester
-
     semesters = defaultdict(list)
-
     for section in course_history:
-
         term = section.get("Term")
-
         if term:
-
             semesters[term].append(section)
-
     
-
     results = []
 
-
-
     for term, sections in semesters.items():
-
         try:
-
             total_enrollment = 0
-
             total_capacity = 0
-
             max_credits = 0.0
-
             all_instructors = set()
-
             start_times = []
-
             meets_friday = False
-
             num_days = 0
-
             
-
             titles = set()
-
             buildings = set()
-
             locations = set()
-
             areas = set()
-
             instruction_methods = set()
-
             is_writing_intensive = False 
 
-
-
             for section in sections:
-
                 # Capacity & Enrollment
-
                 try:
-
                     cap = int(section.get("MaxSeats", 0))
-
                     open_s = int(section.get("OpenSeats", 0))
-
                     total_capacity += cap
-
                     total_enrollment += (cap - open_s)
-
                 except (ValueError, TypeError):
-
                     pass
-
-
 
                 # Credits
-
                 try:
-
                     c = float(section.get("Credits", 0))
-
                     if c > max_credits:
-
                         max_credits = c
-
                 except (ValueError, TypeError):
-
                     pass
-
-
 
                 # Instructors
-
                 instr = section.get("InstructorsFullName", "")
-
                 if instr:
-
                     all_instructors.add(instr)
-
                 
-
                 # Days checks
-
                 try:
-
                     dow = int(section.get("DOW", 0))
-
                     # Friday check (bit 16)
-
                     if dow & 16:
-
                         meets_friday = True
-
                     
-
                     # Count days (bits set)
-
                     # We take the max of sections? Or just the first valid one?
-
                     # Usually sections have same pattern. Let's take the max found.
-
                     d = count_set_bits(dow)
-
                     if d > num_days:
-
                         num_days = d
-
                 except (ValueError, TypeError):
-
                     pass
-
                 
-
                 # Earliest Start Time
-
                 dow_sort = section.get("DOWSort", "")
-
                 if "^" in dow_sort:
-
                     time_str = dow_sort.split("^")[1]
-
                     t_float = parse_time_to_float(time_str)
-
                     if t_float is not None:
-
                         start_times.append(t_float)
 
-
-
                 # New Fields
-
                 t = section.get("Title", "").strip()
-
-                if t: titles.add(t)
-
-
+                if t:
+                    titles.add(t)
 
                 wi = section.get("IsWritingIntensive", "")
-
                 if wi and wi.lower() == "yes":
-
                     is_writing_intensive = True
-
                 
-
                 b = section.get("Building", "").strip()
+                if b:
+                    buildings.add(b)
 
-                if b: buildings.add(b)
-
-
-
-                l = section.get("Location", "").strip()
-
-                if l: locations.add(l)
-
-
+                loc = section.get("Location", "").strip()
+                if loc:
+                    locations.add(loc)
 
                 a = section.get("Areas", "").strip()
-
-                if a and a.lower() != "none": areas.add(a)
-
-
+                if a and a.lower() != "none":
+                    areas.add(a)
 
                 im = section.get("InstructionMethod", "").strip()
-
-                if im: instruction_methods.add(im)
-
-
+                if im:
+                    instruction_methods.add(im)
 
             earliest_start = min(start_times) if start_times else None
-
             
-
             # Lookup details for this term
-
             term_details = details_map.get(term, {})
-
             
-
             row = {
-
                 "course_code": course_code,
-
                 "semester": term,
-
                 "start_time_24h": earliest_start,
-
                 "is_friday": meets_friday,
-
                 "num_days_with_class": num_days,
-
                 "max_capacity": total_capacity,
-
                 "actual_enrollment": total_enrollment,
-
                 "credits": max_credits,
-
                 "instructors": "; ".join(sorted(list(all_instructors))),
-
                 "title": "; ".join(sorted(list(titles))),
-
                 "is_writing_intensive": is_writing_intensive,
-
                 "buildings": "; ".join(sorted(list(buildings))),
-
                 "locations": "; ".join(sorted(list(locations))),
-
                 "areas": "; ".join(sorted(list(areas))),
-
                 "instruction_methods": "; ".join(sorted(list(instruction_methods))),
-
                 "description": term_details.get("description", ""),
-
                 "prerequisites": term_details.get("prerequisites", "")
-
             }
-
             results.append(row)
 
-
-
         except Exception as e:
-
             logging.error(f"Error parsing data for {course_code} {term}: {e}")
-
             continue
-
-
 
     return results
 
