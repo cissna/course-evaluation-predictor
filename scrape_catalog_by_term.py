@@ -8,6 +8,14 @@ from datetime import datetime
 import shutil
 from collections import defaultdict
 
+# Try to import tqdm
+try:
+    from tqdm import tqdm
+except ImportError:
+    def tqdm(iterable, **kwargs):
+        print("tqdm not installed. Progress bar disabled.")
+        return iterable
+
 # Configure Logging
 logging.basicConfig(
     filename='catalog_scrape.log',
@@ -110,7 +118,7 @@ def extract_details_from_history(history_data):
     return mapping
 
 def main():
-    client = APIClient(requests_per_minute=100)
+    client = APIClient(requests_per_minute=500)
     if not client.api_key:
         print("Error: SIS_API_KEY not set.")
         return
@@ -185,13 +193,10 @@ def main():
     with open(OUTPUT_FILE, 'a', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         
-        
-        for i, (course_code, term_map) in enumerate(catalog_skeleton.items()):
-            # TEST MODE: Only process one course
+        # Wrapped in tqdm for progress estimation
+        for course_code, term_map in tqdm(catalog_skeleton.items(), desc="Fetching Details", unit="course"):
             # print("!!! TEST MODE: Processing only the first course found !!!")
             # if i > 0: break 
-            
-            print(f"Processing Test Course: {course_code}")
             
             # term_map is { "Fall 2023": [Sec01, Sec02], "Spring 2024": [Sec01] }
             
