@@ -2,4 +2,6 @@
 .env
 
 sis_errors.log
+
 .DS_Store
+__pycache__/

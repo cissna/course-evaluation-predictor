@@ -20,7 +20,7 @@ class APIClient:
         try:
             import sys
             # Add the directory to sys.path temporarily
-            sys.path.insert(0, "/Users/isaac.cissna/Desktop/VSC/pythonShenanigans/smsTexting")
+            sys.path.insert(0, "/Users/isaac.cissna/Desktop/nonrepo/pythonShenanigans/smsTexting")
             # Import the function
             from texting import send_message  # type: ignore
             sys.path.pop(0)  # change directory back
