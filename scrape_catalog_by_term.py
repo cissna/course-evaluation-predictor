@@ -24,11 +24,20 @@ def generate_terms():
     seasons = ['Intersession', "Spring", "Summer", "Fall"]
     terms = []
     start_year = 2010
-    end_year = datetime.now().year + 1 # Go one year into future per docs
+    current_date = datetime.now()
+    end_year = current_date.year
     
     for year in range(start_year, end_year + 1):
         for season in seasons:
+            # Don't add future terms for the current year if they haven't happened/aren't listed? 
+            # Actually, usually safer to just add them all for current year.
             terms.append(f"{season} {year}")
+            
+    # Add next year's Intersession/Spring if we are late in the year
+    if current_date.month >= 8:
+        terms.append(f"Intersession {end_year + 1}")
+        terms.append(f"Spring {end_year + 1}")
+        
     return terms
 
 def process_section_row(section_data, details_map):
@@ -171,7 +180,14 @@ def main():
     with open(OUTPUT_FILE, 'a', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         
-        for course_code, term_map in catalog_skeleton.items():
+        # TEST MODE: Only process one course
+        print("!!! TEST MODE: Processing only the first course found !!!")
+        
+        for i, (course_code, term_map) in enumerate(catalog_skeleton.items()):
+            if i > 0: break 
+            
+            print(f"Processing Test Course: {course_code}")
+            
             # term_map is { "Fall 2023": [Sec01, Sec02], "Spring 2024": [Sec01] }
             
             # A. Build the Matrix for Set Cover
