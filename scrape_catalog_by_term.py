@@ -128,7 +128,7 @@ def main():
     if os.path.exists(OUTPUT_FILE):
         name, extension = OUTPUT_FILE, ''
         if '.' in OUTPUT_FILE:
-            name, extension = OUTPUT_FILE.rstrip('.', 1)
+            name, extension = OUTPUT_FILE.rsplit('.', 1)
             extension = '.' + extension
             
         timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
