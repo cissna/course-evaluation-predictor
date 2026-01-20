@@ -185,11 +185,11 @@ def main():
     with open(OUTPUT_FILE, 'a', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         
-        # TEST MODE: Only process one course
-        print("!!! TEST MODE: Processing only the first course found !!!")
         
         for i, (course_code, term_map) in enumerate(catalog_skeleton.items()):
-            if i > 0: break 
+            # TEST MODE: Only process one course
+            # print("!!! TEST MODE: Processing only the first course found !!!")
+            # if i > 0: break 
             
             print(f"Processing Test Course: {course_code}")
             
