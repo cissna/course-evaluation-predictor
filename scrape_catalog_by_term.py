@@ -5,7 +5,6 @@ import logging
 import urllib.parse
 from api_client import APIClient
 from datetime import datetime
-import shutil
 from collections import defaultdict
 
 # Try to import tqdm
@@ -133,18 +132,30 @@ def main():
     ]
     
     os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
-    if os.path.exists(OUTPUT_FILE):
-        name, extension = OUTPUT_FILE, ''
-        if '.' in OUTPUT_FILE:
-            name, extension = OUTPUT_FILE.rsplit('.', 1)
-            extension = '.' + extension
-            
-        timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
-        shutil.move(OUTPUT_FILE, f"{name}.{timestamp}.bak{extension}")
     
-    with open(OUTPUT_FILE, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
+    # Track (CourseCode, Term) pairs to allow granular resuming
+    processed_offerings = set()
+    file_exists = os.path.exists(OUTPUT_FILE)
+    
+    if file_exists:
+        print(f"Existing output found at {OUTPUT_FILE}. Checking for resume point...")
+        try:
+            with open(OUTPUT_FILE, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    code = row.get("CourseCode")
+                    term = row.get("Term")
+                    if code and term:
+                        processed_offerings.add((code, term))
+            print(f"Resuming: {len(processed_offerings)} offerings already processed.")
+        except Exception as e:
+            print(f"Error reading existing file: {e}. Starting fresh.")
+            file_exists = False
+    
+    if not file_exists:
+        with open(OUTPUT_FILE, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
 
     # 2. Term Sweep (Catalog Building)
     # We will accumulate ALL sections for ALL terms into memory first?
@@ -194,11 +205,31 @@ def main():
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         
         # Wrapped in tqdm for progress estimation
-        for course_code, term_map in tqdm(catalog_skeleton.items(), desc="Fetching Details", unit="course"):
-            # print("!!! TEST MODE: Processing only the first course found !!!")
-            # if i > 0: break 
+        for course_code, full_term_map in tqdm(catalog_skeleton.items(), desc="Fetching Details", unit="course"):
             
-            # term_map is { "Fall 2023": [Sec01, Sec02], "Spring 2024": [Sec01] }
+            # Identify which terms for this course are NOT yet processed
+            missing_terms = []
+            for t in full_term_map.keys():
+                if (course_code, t) not in processed_offerings:
+                    missing_terms.append(t)
+            
+            # If we have processed ALL terms for this course, skip it entirely
+            if not missing_terms:
+                continue
+            
+            # Filter term_map to only include missing terms
+            # We assume description/prereqs from a shared section will apply to these specific missing terms.
+            # NOTE: For the Greedy Algorithm to work BEST, it ideally wants to know about ALL terms 
+            # (to find the section covering the most terms).
+            # However, for resumption efficiency, we only want to write/fetch what's missing.
+            # Compromise: We use the full `full_term_map` to calculate coverage (finding the best section),
+            # but we only WRITE rows for `missing_terms`.
+            # Actually, to save API calls, we should restrict `all_terms_needed` to just `missing_terms`.
+            # Why? Because if we already have "Fall 2023", we don't need to re-fetch its details even if
+            # it would help us "cover" "Spring 2024".
+            
+            # Construct term_map only for missing terms
+            term_map = {t: full_term_map[t] for t in missing_terms}
             
             # A. Build the Matrix for Set Cover
             # Map: Term -> Set(SectionNames)

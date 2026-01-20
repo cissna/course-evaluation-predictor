@@ -62,22 +62,50 @@ class APIClient:
                     except ValueError:
                         raise Exception(f"Invalid JSON response: {response.text[:100]}...")
                 
-                # If fail_silently is True, we return None on non-200 to let caller handle it (e.g. switch strategy)
-                if fail_silently:
-                    logging.warning(f"Request failed silently (Status {response.status_code}): {url}")
+                # Logic: If fail_silently is True, only return None for 500 or 404 errors.
+                # These suggest a backend issue with that specific query, where fallback is appropriate.
+                if fail_silently and response.status_code in [500, 404]:
+                    logging.warning(f"Request failed with {response.status_code} (fail_silently=True): {url}")
                     return None
                     
-                response.raise_for_status() # Trigger exception for 4xx/5xx
+                response.raise_for_status() # Trigger exception for other 4xx/5xx
+
+            except requests.exceptions.HTTPError as e:
+                # Handle specific HTTP errors if fail_silently is enabled
+                if fail_silently and e.response is not None and e.response.status_code in [500, 404]:
+                    logging.warning(f"HTTP Error caught (fail_silently=True): {e}")
+                    return None
+                
+                # Otherwise, treat as a hard failure that needs intervention
+                logging.error(f"HTTP Error: {e}")
+                self._send_sms_alert(str(e))
+                self._pause_and_wait(url, str(e))
+
+            except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+                # Network errors should NEVER fail silently. We always want to pause and retry.
+                logging.error(f"Network error: {e}")
+                self._send_sms_alert(str(e))
+                self._pause_and_wait(url, str(e))
 
             except Exception as e:
-                if fail_silently:
-                    logging.warning(f"Request failed silently: {e}")
-                    return None
-                    
-                logging.error(f"Request failed: {e}")
-                self._send_alert_email(str(e))
+                logging.error(f"Unexpected error: {e}")
                 self._send_sms_alert(str(e))
-                
-                print(f"\n[!] Request failed for URL: {url}")
-                print(f"[!] Error: {e}")
-                print("[!] Execution PAUSED. Enter a new requests_per_minute rate to resume (e.g., '10').")
+                self._pause_and_wait(url, str(e))
+
+    def _pause_and_wait(self, url, error_msg):
+        print(f"\n[!] Request failed for URL: {url}")
+        print(f"[!] Error: {error_msg}")
+        print("[!] Execution PAUSED. Enter a new requests_per_minute rate to resume (e.g., '10').")
+        
+        while True:
+            user_input = input("New Rate (req/min): ").strip()
+            try:
+                new_rate = int(user_input)
+                if new_rate > 0:
+                    self.requests_per_minute = new_rate
+                    logging.info(f"Resuming with rate: {self.requests_per_minute}/min")
+                    break
+                else:
+                    print("Please enter a positive integer.")
+            except ValueError:
+                print("Invalid input. Please enter an integer.")
