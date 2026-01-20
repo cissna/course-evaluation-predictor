@@ -250,9 +250,29 @@ def main():
                 target_url = f"{API_BASE_URL}/{clean_code}{best_section}"
                 
                 logging.info(f"Fetching details for {course_code} Section {best_section} (Covers {candidate_counts[best_section]} terms)")
-                # print(f"  Fetching {course_code} Sec {best_section}...")
                 
-                history_data = client.make_request(target_url)
+                # Try Bulk Fetch first
+                history_data = client.make_request(target_url, fail_silently=True)
+                
+                # If Bulk fails (e.g. 500 Error for too much history), Fallback to Iterative
+                if history_data is None:
+                    logging.info(f"  -> Bulk fetch failed for {course_code} Sec {best_section}. Switching to iterative fetch...")
+                    history_data = []
+                    
+                    # Identify terms this section is expected to cover
+                    terms_to_fetch = []
+                    for term, sections in term_to_sections.items():
+                        if best_section in sections:
+                            terms_to_fetch.append(term)
+                            
+                    # Fetch individually
+                    for term in terms_to_fetch:
+                        encoded_t = urllib.parse.quote(term)
+                        term_url = f"{target_url}/{encoded_t}"
+                        
+                        term_data = client.make_request(term_url, fail_silently=True) # If this fails, truly skip
+                        if term_data and isinstance(term_data, list):
+                            history_data.extend(term_data)
                 
                 # 3. Process the History
                 # Extract details for ANY term returned (even if not in our 'uncovered' set, 

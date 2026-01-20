@@ -41,7 +41,7 @@ class APIClient:
         
         self.last_request_time = time.time()
 
-    def make_request(self, url, params=None):
+    def make_request(self, url, params=None, fail_silently=False):
         if params is None:
             params = {}
         
@@ -58,33 +58,26 @@ class APIClient:
                 if response.status_code == 200:
                     try:
                         data = response.json()
-                        # SIS API sometimes returns {"Message": "..."} for logic errors/no records
-                        # But that is technically a successful HTTP request, so we return it.
                         return data
                     except ValueError:
-                        # Non-JSON response (e.g. 500 error page text masquerading as 200?)
-                        # Treat as failure if expected JSON
                         raise Exception(f"Invalid JSON response: {response.text[:100]}...")
-                else:
-                    response.raise_for_status() # Trigger exception for 4xx/5xx
+                
+                # If fail_silently is True, we return None on non-200 to let caller handle it (e.g. switch strategy)
+                if fail_silently:
+                    logging.warning(f"Request failed silently (Status {response.status_code}): {url}")
+                    return None
+                    
+                response.raise_for_status() # Trigger exception for 4xx/5xx
 
             except Exception as e:
+                if fail_silently:
+                    logging.warning(f"Request failed silently: {e}")
+                    return None
+                    
                 logging.error(f"Request failed: {e}")
+                self._send_alert_email(str(e))
                 self._send_sms_alert(str(e))
                 
                 print(f"\n[!] Request failed for URL: {url}")
                 print(f"[!] Error: {e}")
                 print("[!] Execution PAUSED. Enter a new requests_per_minute rate to resume (e.g., '10').")
-                
-                while True:
-                    user_input = input("New Rate (req/min): ").strip()
-                    try:
-                        new_rate = int(user_input)
-                        if new_rate > 0:
-                            self.requests_per_minute = new_rate
-                            logging.info(f"Resuming with rate: {self.requests_per_minute}/min")
-                            break # Break input loop, allowing outer loop to retry request
-                        else:
-                            print("Please enter a positive integer.")
-                    except ValueError:
-                        print("Invalid input. Please enter an integer.")
