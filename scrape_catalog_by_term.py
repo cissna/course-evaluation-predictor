@@ -126,8 +126,13 @@ def main():
     
     os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
     if os.path.exists(OUTPUT_FILE):
+        name, extension = OUTPUT_FILE, ''
+        if '.' in OUTPUT_FILE:
+            name, extension = OUTPUT_FILE.rstrip('.', 1)
+            extension = '.' + extension
+            
         timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
-        shutil.move(OUTPUT_FILE, f"{OUTPUT_FILE}.{timestamp}.bak")
+        shutil.move(OUTPUT_FILE, f"{name}.{timestamp}.bak{extension}")
     
     with open(OUTPUT_FILE, 'w', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
